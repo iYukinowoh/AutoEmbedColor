@@ -154,11 +154,8 @@
             background-color: var(--btn-color);
             color: #000;
             border: none;
-            
-            /* Kích thước nút: */
             width: 90px; 
             height: 50px;
-            
             border-radius: 8px;
             font-weight: bold;
             font-size: 14px;
@@ -217,6 +214,8 @@
             const lines = text.split('\n');
             charactersData = [];
             resultsDiv.innerHTML = '';
+            btnAhk.style.display = 'none';
+            
             const regex = /^([^\·]+)\s*·.*?(?:-|–)\s*(https?:\/\/[^\s]+)/;
 
             for (let line of lines) {
@@ -228,12 +227,6 @@
                         palettes: null
                     });
                 }
-            }
-
-            if (charactersData.length > 0) {
-                btnAhk.style.display = 'block';
-            } else {
-                btnAhk.style.display = 'none';
             }
 
             renderCards();
@@ -272,36 +265,34 @@
         }
 
         async function extractColors() {
-            // Chạy vòng lặp tuần tự thay vì Promise.all để không bị Proxy nhận diện là spam request
-            for (let i = 0; i < charactersData.length; i++) {
-                if (charactersData[i].palettes) continue;
-                
-                const originalUrl = charactersData[i].originalUrl;
-                const proxies = [
-                    `https://wsrv.nl/?url=${encodeURIComponent(originalUrl)}&output=png&w=100`,
-                    `https://api.allorigins.win/raw?url=${encodeURIComponent(originalUrl)}`
-                ];
-                
-                let success = false;
+            const concurrencyLimit = 15;
+            let currentIndex = 0;
 
-                for (let proxyUrl of proxies) {
-                    try {
-                        const img = new Image();
-                        img.crossOrigin = 'Anonymous';
-                        await new Promise((resolve, reject) => {
-                            img.onload = resolve;
-                            img.onerror = reject;
-                            img.src = proxyUrl;
-                        });
-                        const vibrant = new Vibrant(img);
-                        charactersData[i].palettes = await vibrant.getPalette();
-                        success = true;
-                        renderCards();
-                        break;
-                    } catch (err) {}
+            async function processNext() {
+                if (currentIndex >= charactersData.length) return;
+                
+                const i = currentIndex++;
+                if (charactersData[i].palettes) {
+                    await processNext();
+                    return;
                 }
                 
-                if (!success) {
+                const originalUrl = charactersData[i].originalUrl;
+                const proxyUrl = `https://wsrv.nl/?url=${encodeURIComponent(originalUrl)}&output=png&w=80`;
+
+                try {
+                    const img = new Image();
+                    img.crossOrigin = 'Anonymous';
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                        img.src = proxyUrl;
+                    });
+                    
+                    const vibrant = new Vibrant(img);
+                    charactersData[i].palettes = await vibrant.getPalette();
+                    renderCards();
+                } catch (err) {
                     charactersData[i].palettes = {
                         Vibrant: { hex: '#ffffff' }, Muted: { hex: '#cccccc' },
                         DarkVibrant: { hex: '#333333' }, DarkMuted: { hex: '#555555' },
@@ -309,6 +300,19 @@
                     };
                     renderCards();
                 }
+                
+                await processNext();
+            }
+
+            const workers = [];
+            for (let i = 0; i < concurrencyLimit; i++) {
+                workers.push(processNext());
+            }
+            
+            await Promise.all(workers);
+
+            if (charactersData.length > 0) {
+                btnAhk.style.display = 'block';
             }
         }
 
