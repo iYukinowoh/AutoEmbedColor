@@ -10,7 +10,7 @@
             --bg-color: #000000;
             --text-color: #ffffff;
             --accent-color: #00e5a3;
-            --btn-color: #efaeff; 
+            --btn-color: #fac0ff; 
             --card-bg: #0a1414;
             --input-bg: #000000;
             --border-color: #333333;
@@ -216,7 +216,7 @@
             resultsDiv.innerHTML = '';
             btnAhk.style.display = 'none';
             
-            const regex = /^([^\·]+)\s*·.*?(?:-|–)\s*(https?:\/\/[^\s]+)/;
+            const regex = /^([^\·]+?)\s*·.*?(?:-|–)\s*<?(https?:\/\/[^\s>]+)/;
 
             for (let line of lines) {
                 const match = line.match(regex);
